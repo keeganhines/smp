@@ -6,7 +6,7 @@ Description: smp provides a set of tools for analyizing single molecule
     pacakge are described in the paper Hines, K. 2013. Inferring subunit
     stoichiometry from single molecule photobleaching. J Gen Physiol.
     141(6):737-746.
-Version: 0.0.1
+Version: 1.0.2
 Author: Keegan Hines <keegan.hines@gmail.com>
 Maintainer: Keegan Hines <keegan.hines@gmail.com>
 Depends:
