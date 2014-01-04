@@ -12,3 +12,5 @@ install_github('smp',username='keeganhines')
 library(smp)
 ```
 
+## Example ## 
+You can check out a tutorial on the use of this package, located in the `vignettes` directory, or download [here] (https://github.com/keeganhines/smp/blob/master/vignettes/tutorial.pdf).
