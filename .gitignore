@@ -3,3 +3,7 @@
 .Rapp.history
 .DS_Store
 ..Rcheck/*
+tutorial.aux
+tutorial.tex
+tutorial.log
+unnamed*

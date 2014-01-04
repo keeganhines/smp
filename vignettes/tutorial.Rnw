@@ -1,0 +1,111 @@
+\documentclass{article}
+\title{Analysis of Single Moculecule Photobleaching}
+\author{Keegan Hines}
+\usepackage{fullpage}
+\begin{document}
+\maketitle
+
+
+\section*{Introductory}
+This tutorial is a walkthrough of the analysis functions that accompany the paper \emph{Inferring Subunit Stoichiometry from Single Molecule Photobleaching} which are found in the R package {\bf smp}.
+
+\section*{smp}
+If you haven't installed the package yet, the easiest way is install it from github using the {\bf devtools} package. 
+
+<<eval=FALSE >>=
+library(devtools)
+install_github('smp',username='keeganhines')
+@
+
+Now when we import the {\bf smp} package, we should have access to the important functions and an example dataset called {\tt bleaching\_data}.
+
+<<>>=
+library(smp)
+bleaching_data
+@ 
+
+\section*{Analysis Functions}
+One of functions available to us is called {\tt estimate.theta()}. Recall from the main text of the accompanying paper that the parameter $\theta$ is the probability of a particular binary event happening. This parameter plays an important role in a binomial distribution, Bn($n$,$\theta$), which is the probability distribution of observing any number of events, given that $n$ are possible and each occurs with probability $\theta$. Ultimately, we need to estimate $n$ and $\theta$ from some observations. Let's try it out with the example dataset.
+
+<<>>=
+estimate.theta(bleaching_data)
+@
+
+By defeault, this function finds the largest observed number of events, here it is $4$, and fixes $n$ to that value. Given that $n$ is $4$, the best point estimate of $\theta$ is $0.48$.
+ In the paper, it was noted that the estimate of $\theta$ depends on an assumption about $n$ such that as $n$ increases, the estimate of $\theta$ will decrease. The function {\tt estimate.theta()} provides a point estimate of $\theta$ with respect to a particular $n$. Let's abandon the example dataset for now and use simulated data (using {\tt rbinom()}) so that we can compare the results to the "true" values.
+
+<<prompt=TRUE>>=
+simulated.data<-rbinom(100,4,.5) #100 observations from Bn(4,.5) model
+table(simulated.data)
+estimate.theta(simulated.data)
+@
+
+By default, this function finds the largest observation and assumes that to be $n$. However, we can specify that we wish to estimate $\theta$ with respect to any potential $n$. 
+
+<<prompt=TRUE>>=
+estimate.theta(simulated.data,n=5)
+@
+
+It is pointed out in the main text that estimating the true $n$ from such observations can be problematic. As we just saw, the optimal estimate of $\theta$ will shift downward as we consider larger $n$. In some instances, the result will be that many potential $n$ can fit some data identically well. Due to this, methods were developed to quantify confidence when anaylzing such observtions. The two methods of quantification are described in equations [4] and [9] in the main text and are implemented in the function {\tt confidence()}. 
+
+This function requires only one argument which is the name of the variable containing the  data. Here, we will simulate random data an to more easily examine the effects of the parameters on estimation confidence.
+<<prompt=TRUE>>=
+confidence(simulated.data)
+confidence(rbinom(100,4,.5))
+@
+
+For example, increasing $\theta$ results in increased confidence, as we might have expected. Additionally, larger $n$ results in less confidence and larger $N$ results in higher confidence.
+
+<<prompt=TRUE>>=
+# Notice effect of increasing theta
+confidence(rbinom(100,4,.6));confidence(rbinom(100,4,.7))
+# Notice effect of increasing n
+confidence(rbinom(100,4,.7));confidence(rbinom(100,8,.7))
+# Notice effect of larger sample size
+confidence(rbinom(100,4,.5));confidence( rbinom(500,4,.5))
+@
+
+I mentioned that the function {\bf confidence()} can implement one of two calculations. By default, this function computes the full Bayesian estimate of confidence which is described by equation [9] of the main text. In the paper, I argue that this method is the most conservative and appropriate way to estimate confidence. Nonetheless, the simpler calculation of equation [4] can also be implemented by including the argument {\tt Bayes=FALSE}.
+
+<<prompt=TRUE >>=
+confidence(simulated.data)
+confidence(simulated.data,Bayes=FALSE)
+@
+
+In general, the non-Bayes estimate will be an overestimate of confidence. However, for small sample sizes (or low $\theta$), it is not impossible for the Bayesian estimate to be larger. The reason for this is that the Bayesian estimator takes into the account the full variance in the observations, as where the simpler method just assumes that $\theta$ is known with perfect precision and does not consider the actual data. As a result, the Bayesian estimator is more sensitive to sampling variance in small sample sizes. Additionally, as $N$ increases, the two methods will become equivalent.
+
+<<prompt=TRUE>>=
+confidence(rbinom(550,4,.5))
+confidence(rbinom(550,4,.5),Bayes=FALSE)
+@
+
+Also, it is worth pointing out a potential bug that might skew your interpretation. Recall that the function {\tt confidence(...,Bayes=FALSE)} computes equation [4] from the main paper. That is, it computes $\alpha =1-(1-{\hat \theta}^{{\hat k}+1})^{N} $ for the input dataset. Note that the value of $\alpha$ will always be between $0$ and $1$ and can \emph{never} be exactly $1$. However, 
+
+<< >>=
+confidence(rbinom(500,4,.7),Bayes=FALSE)
+@
+
+We are told that $\alpha$ equals $1$ because we have exceeded the machine precision that R is able to represent. That is, the value of $\alpha$ is so slightly below $1$, that R doesn't bother representing it and instead returns the integer $1$. Since we know this can never be the case, we just need to keep in mind that $\alpha$ is just higher than some arbitrarily high threshold, such as $\alpha > .9999$ or so.
+
+The final function can be used to address whether certain observations might be artifacts. As described in equation [10] of the main text, the parameter $\gamma$ is an estimate of whether the largest number of observed $n$ occur with anomalously low prevalence.For example, let's suppose that the true $n$ is four and that a data collection algorithm resulted in a small number of artifactual observations larger than four. We can visually inspect the data and notice that the distribution looks inconsistent. The function {\tt gamma()} provides an estimate of observing a similar distribution under the null hypothesis that $n$ is equal the largest number of observations. Similar to a p-value, a low value for $\gamma$ is evidence against the null hypothesis and thus we might exclude all observations larger than four as artifacts.
+
+<<prompt=TRUE,fig.width=5,fig.height=5>>=
+messy.data<-c(rbinom(150,4,.7),5,5,5) # We have 150 observations from a 
+#binomial distribution with n=4, and also several
+# anomalous observations of size 5.
+barplot(table(messy.data),xlab=c('Steps'),ylab=c('Number of Observations'))
+# Data looks strange. It seems we should conclude n=5, but maybe the events of size 5 are artifacts. 
+gamma(messy.data,Bayes=FALSE)
+@
+In this instance, $\gamma$ is very small and therefore we might reject the null hypothesis, depending on our threshold. If we remove all observations of size 5 from the data set, we can ask again whether the resulting data are anomalous with respect to how many events of size $n$ are observed.
+
+<<prompt=TRUE>>=
+gamma(messy.data[messy.data<5] ,Bayes=FALSE)
+confidence(messy.data[messy.data<5],Bayes=FALSE)
+@
+This estimate of $\gamma$ is large, which indicates that the distribution is not atypical. Therefore, we might conclude that $n$=4 and it turns out that we can make that claim with high confidence. 
+
+
+
+
+\end{document}
